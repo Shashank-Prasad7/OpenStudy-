@@ -1,0 +1,57 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.13-slim
+        ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY . .
+        CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - .:/app
+
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: openstudy
+      POSTGRES_PASSWORD: openstudy
+      POSTGRES_DB: openstudy
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U openstudy -d openstudy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
