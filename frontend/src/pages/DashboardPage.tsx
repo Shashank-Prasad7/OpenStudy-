@@ -7,7 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Link } from 'react-router-dom'
 import { Target, BookOpen, Flame, Trophy, ArrowRight, Users } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { formatDate } from '@/lib/utils'
+import { formatDate } from '@/libs/utils'
 
 function StatCard({ icon: Icon, label, value, color }: { icon: typeof Target; label: string; value: string | number; color: string }) {
   return (
@@ -76,14 +76,14 @@ export default function DashboardPage() {
             {goalsLoading
               ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)
               : goals.slice(0, 5).length === 0
-              ? <p className="text-muted-foreground text-sm py-4 text-center">No goals yet — <Link to="/goals" className="text-primary hover:underline">add your first</Link></p>
-              : goals.slice(0, 5).map(g => (
-                <div key={g.id} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
-                  <div className={`h-2 w-2 rounded-full shrink-0 ${g.completed ? 'bg-green-500' : 'bg-primary'}`} />
-                  <span className={`text-sm flex-1 truncate ${g.completed ? 'line-through text-muted-foreground' : ''}`}>{g.title}</span>
-                  {g.deadline && <span className="text-xs text-muted-foreground shrink-0">{formatDate(g.deadline)}</span>}
-                </div>
-              ))
+                ? <p className="text-muted-foreground text-sm py-4 text-center">No goals yet — <Link to="/goals" className="text-primary hover:underline">add your first</Link></p>
+                : goals.slice(0, 5).map(g => (
+                  <div key={g.id} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0">
+                    <div className={`h-2 w-2 rounded-full shrink-0 ${g.completed ? 'bg-green-500' : 'bg-primary'}`} />
+                    <span className={`text-sm flex-1 truncate ${g.completed ? 'line-through text-muted-foreground' : ''}`}>{g.title}</span>
+                    {g.deadline && <span className="text-xs text-muted-foreground shrink-0">{formatDate(g.deadline)}</span>}
+                  </div>
+                ))
             }
           </CardContent>
         </Card>
@@ -104,19 +104,19 @@ export default function DashboardPage() {
             {roomsLoading
               ? Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-12 w-full" />)
               : rooms.length === 0
-              ? <p className="text-muted-foreground text-sm py-4 text-center">No rooms yet — <Link to="/rooms" className="text-primary hover:underline">create one</Link></p>
-              : rooms.map(r => (
-                <Link key={r.id} to={`/rooms/${r.id}`} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0 hover:opacity-80 transition-opacity">
-                  <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0">
-                    {r.name.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{r.name}</p>
-                    <p className="text-xs text-muted-foreground">{r.member_count} / {r.max_members} members</p>
-                  </div>
-                  <Badge variant="outline" className="text-xs shrink-0">{r.visibility}</Badge>
-                </Link>
-              ))
+                ? <p className="text-muted-foreground text-sm py-4 text-center">No rooms yet — <Link to="/rooms" className="text-primary hover:underline">create one</Link></p>
+                : rooms.map(r => (
+                  <Link key={r.id} to={`/rooms/${r.id}`} className="flex items-center gap-3 py-2 border-b border-border/30 last:border-0 hover:opacity-80 transition-opacity">
+                    <div className="h-8 w-8 rounded-lg bg-primary/20 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                      {r.name.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">{r.name}</p>
+                      <p className="text-xs text-muted-foreground">{r.member_count} / {r.max_members} members</p>
+                    </div>
+                    <Badge variant="outline" className="text-xs shrink-0">{r.visibility}</Badge>
+                  </Link>
+                ))
             }
           </CardContent>
         </Card>

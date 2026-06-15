@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom'
-import { cn } from '@/lib/utils'
+import { cn } from '@/libs/utils'
 import { useAuthStore } from '@/store/authStore'
 import { api } from '@/api/client'
 import { toast } from 'sonner'
@@ -8,7 +8,7 @@ import {
   LogOut, GraduationCap, Settings, Flame,
 } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { getInitials } from '@/lib/utils'
+import { getInitials } from '@/libs/utils'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const navItems = [
