@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { api } from '@/api/client'
+import { api, getApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -13,7 +13,7 @@ import { GraduationCap, Eye, EyeOff, Loader2 } from 'lucide-react'
 
 const schema = z.object({
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Min 6 characters'),
+  password: z.string().min(8, 'Use at least 8 characters'),
 })
 type FormData = z.infer<typeof schema>
 
@@ -33,8 +33,7 @@ export default function LoginPage() {
       toast.success(`Welcome back, ${res.data.user.name}!`)
       navigate('/dashboard')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Login failed'
-      toast.error(msg)
+      toast.error(getApiError(err, 'Login failed'))
     }
   }
 

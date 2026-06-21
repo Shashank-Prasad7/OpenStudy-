@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { api } from '@/api/client'
+import { api, getApiError } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -14,8 +14,8 @@ import { GraduationCap, Eye, EyeOff, Loader2 } from 'lucide-react'
 const schema = z.object({
   name: z.string().min(2, 'Name must be at least 2 characters'),
   email: z.string().email('Invalid email'),
-  password: z.string().min(6, 'Min 6 characters'),
-  timezone: z.string().default('UTC'),
+  password: z.string().min(8, 'Use at least 8 characters'),
+  timezone: z.string().min(1),
 })
 type FormData = z.infer<typeof schema>
 
@@ -36,8 +36,7 @@ export default function RegisterPage() {
       toast.success('Account created! Welcome to OpenStudy 🎉')
       navigate('/dashboard')
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'Registration failed'
-      toast.error(msg)
+      toast.error(getApiError(err, 'Registration failed'))
     }
   }
 

@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     ]
 
     groq_api_key: SecretStr | None = None
-    groq_model: str = "llama3-70b-8192"
+    groq_model: str = "llama-3.3-70b-versatile"
 
     auth_rate_limit: int = 8
     auth_rate_limit_window_seconds: int = 60

@@ -23,6 +23,7 @@ class GoalRead(BaseModel):
     title: str
     completed: bool
     deadline: datetime | None
+    completed_at: datetime | None
     created_at: datetime
 
 

@@ -17,11 +17,11 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    room_visibility = sa.Enum("public", "private", name="room_visibility")
-    study_time = sa.Enum("morning", "evening", "night", name="study_time")
-    study_style = sa.Enum("solo", "group", "mix", name="study_style")
-    pomodoro_status = sa.Enum("active", "paused", "completed", name="pomodoro_status")
-    match_status = sa.Enum("pending", "accepted", "declined", name="match_status")
+    room_visibility = postgresql.ENUM("public", "private", name="room_visibility", create_type=False)
+    study_time = postgresql.ENUM("morning", "evening", "night", name="study_time", create_type=False)
+    study_style = postgresql.ENUM("solo", "group", "mix", name="study_style", create_type=False)
+    pomodoro_status = postgresql.ENUM("active", "paused", "completed", name="pomodoro_status", create_type=False)
+    match_status = postgresql.ENUM("pending", "accepted", "declined", name="match_status", create_type=False)
 
     bind = op.get_bind()
     room_visibility.create(bind, checkfirst=True)
@@ -40,6 +40,7 @@ def upgrade() -> None:
         sa.Column("timezone", sa.String(length=50), nullable=False),
         sa.Column("avatar_url", sa.Text(), nullable=True),
         sa.Column("streak_count", sa.Integer(), server_default="0", nullable=False),
+        sa.Column("last_study_date", sa.Date(), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
     )
@@ -81,6 +82,7 @@ def upgrade() -> None:
         sa.Column("title", sa.String(length=180), nullable=False),
         sa.Column("completed", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("deadline", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False),
         sa.ForeignKeyConstraint(["user_id"], ["users.id"], name=op.f("fk_goals_user_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_goals")),
@@ -135,8 +137,8 @@ def upgrade() -> None:
         sa.Column("match_score", sa.Float(), nullable=False),
         sa.Column("status", match_status, server_default="pending", nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("timezone('utc', now())"), nullable=False),
-        sa.CheckConstraint("match_score >= 0 and match_score <= 1", name="ck_partner_matches_score_range"),
-        sa.CheckConstraint("user_a_id <> user_b_id", name="ck_partner_matches_distinct_users"),
+        sa.CheckConstraint("match_score >= 0 and match_score <= 1", name="score_range"),
+        sa.CheckConstraint("user_a_id <> user_b_id", name="distinct_users"),
         sa.ForeignKeyConstraint(["user_a_id"], ["users.id"], name=op.f("fk_partner_matches_user_a_id_users"), ondelete="CASCADE"),
         sa.ForeignKeyConstraint(["user_b_id"], ["users.id"], name=op.f("fk_partner_matches_user_b_id_users"), ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_partner_matches")),

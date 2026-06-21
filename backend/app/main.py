@@ -13,8 +13,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.config import get_settings
 from app.database import check_database, engine
 from app.routers import ai, auth, goals, matches, rooms, users
-import asyncio
-from app.tasks.cleanup import start_cleanup_task
+from app.tasks.cleanup import start_cleanup_task, stop_cleanup_task
+from app.websocket.manager import websocket_router
 
 settings = get_settings()
 logger = structlog.get_logger(__name__)
@@ -28,7 +28,9 @@ def configure_logging() -> None:
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             structlog.processors.JSONRenderer(),
         ],
-        wrapper_class=structlog.make_filtering_bound_logger(getattr(logging, settings.log_level.upper(), logging.INFO)),
+        wrapper_class=structlog.make_filtering_bound_logger(
+            getattr(logging, settings.log_level.upper(), logging.INFO)
+        ),
         cache_logger_on_first_use=True,
     )
 
@@ -36,21 +38,24 @@ def configure_logging() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     configure_logging()
-    # Attempt to connect to Redis; if unavailable, continue without it
+    app.state.redis = None
     try:
-        app.state.redis = redis.from_url(settings.redis_url, decode_responses=True)
-        await app.state.redis.ping()
+        client = redis.from_url(settings.redis_url, decode_responses=True)
+        await client.ping()
+        app.state.redis = client
         logger.info("redis_connected")
     except Exception as exc:
         logger.warning("redis_unavailable", error=str(exc))
-        app.state.redis = None
+
     await check_database()
+    await start_cleanup_task(app, retention_hours=settings.pomodoro_retention_hours)
     logger.info("startup_complete", app=settings.app_name, environment=settings.environment)
-    await start_cleanup_task(app)
     try:
         yield
     finally:
-        await app.state.redis.aclose()
+        await stop_cleanup_task(app)
+        if app.state.redis is not None:
+            await app.state.redis.aclose()
         await engine.dispose()
         logger.info("shutdown_complete")
 
@@ -58,7 +63,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title=settings.app_name,
     version="1.0.0",
-    description="Production-ready backend for the OpenStudy collaborative study platform.",
+    description="Open-source collaborative study rooms, goals, partner matching, and AI planning.",
     lifespan=lifespan,
 )
 
@@ -77,7 +82,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
     logger.warning("validation_error", path=request.url.path, errors=exc.errors())
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": "Invalid request payload.", "errors": exc.errors()},
+        content={"detail": {"message": "Invalid request payload.", "code": "validation_error"}, "errors": exc.errors()},
     )
 
 
@@ -86,17 +91,21 @@ async def database_exception_handler(request: Request, exc: SQLAlchemyError) -> 
     logger.exception("database_error", path=request.url.path, error=str(exc))
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": "Database operation failed."},
+        content={"detail": {"message": "Database operation failed.", "code": "database_error"}},
     )
 
 
 @app.get("/health", tags=["health"])
 async def health(request: Request) -> dict[str, bool]:
-    # Ping Redis if available; otherwise skip
-    if hasattr(request.app.state, "redis"):
-        await request.app.state.redis.ping()
     await check_database()
-    return {"ok": True, "database": True, "redis": True}
+    redis_ok = False
+    client = getattr(request.app.state, "redis", None)
+    if client is not None:
+        try:
+            redis_ok = bool(await client.ping())
+        except Exception:
+            redis_ok = False
+    return {"ok": True, "database": True, "redis": redis_ok}
 
 
 app.include_router(auth.router, prefix=settings.api_prefix)
@@ -105,3 +114,4 @@ app.include_router(rooms.router, prefix=settings.api_prefix)
 app.include_router(goals.router, prefix=settings.api_prefix)
 app.include_router(matches.router, prefix=settings.api_prefix)
 app.include_router(ai.router, prefix=settings.api_prefix)
+app.include_router(websocket_router)

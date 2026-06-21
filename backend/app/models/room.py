@@ -28,10 +28,7 @@ class StudyRoom(Base):
     description: Mapped[str | None] = mapped_column(Text)
     subject_tags: Mapped[list[str]] = mapped_column(ARRAY(String), nullable=False, default=list, server_default="{}")
     created_by: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     visibility: Mapped[RoomVisibility] = mapped_column(
         Enum(RoomVisibility, name="room_visibility"),
@@ -41,15 +38,16 @@ class StudyRoom(Base):
     )
     max_members: Mapped[int] = mapped_column(Integer, nullable=False, default=10, server_default="10")
     created_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=utc_now,
-        server_default=text("timezone('utc', now())"),
+        DateTime(timezone=True), nullable=False, default=utc_now, server_default=text("timezone('utc', now())")
     )
 
     creator: Mapped["User"] = relationship(back_populates="rooms_created")
     members: Mapped[list["RoomMember"]] = relationship(back_populates="room", cascade="all, delete-orphan")
     pomodoro_sessions: Mapped[list["PomodoroSession"]] = relationship(back_populates="room", cascade="all, delete-orphan")
+
+    @property
+    def member_count(self) -> int:
+        return len(self.members)
 
 
 class RoomMember(Base):
@@ -60,22 +58,13 @@ class RoomMember(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     room_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("study_rooms.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("study_rooms.id", ondelete="CASCADE"), nullable=False, index=True
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     joined_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=utc_now,
-        server_default=text("timezone('utc', now())"),
+        DateTime(timezone=True), nullable=False, default=utc_now, server_default=text("timezone('utc', now())")
     )
 
     room: Mapped["StudyRoom"] = relationship(back_populates="members")

@@ -1,103 +1,138 @@
-# OpenStudy Backend
+# OpenStudy
 
-Production-ready FastAPI backend for OpenStudy, an open-source collaborative study platform built for the Unbound '26 Hackathon.
+OpenStudy is an MIT-licensed collaborative study platform for students who need consistency, accountability, and compatible study partners—not another resource library.
 
-## Stack
+It includes:
 
-- FastAPI with async SQLAlchemy 2.0
-- PostgreSQL via asyncpg
-- Alembic migrations
-- Redis for Pomodoro state, rate limiting, and multi-instance consistency
-- Pydantic v2 schemas
-- JWT auth in HttpOnly cookies with refresh rotation
-- FastAPI WebSockets for room presence and synced Pomodoro timers
-- Groq SDK with Llama 3 for AI study planning
-- structlog JSON logging
+- Live study rooms with real-time presence.
+- One Redis-synchronized Pomodoro per room.
+- Goals, streaks, and post-session notes.
+- Partner matching by subject, timezone, study time, and style.
+- An optional Groq-powered study planner with a local fallback.
+- Responsive React UI, FastAPI API, PostgreSQL migrations, and CI.
 
-## Setup
+## Architecture
 
-```powershell
-cd backend
-Copy-Item .env.example .env
-docker compose up --build
-docker compose exec api alembic upgrade head
+```text
+React + Vite + Tailwind + Zustand + TanStack Query
+              │ REST + WebSocket
+              ▼
+        FastAPI application
+          │             │
+          ▼             ▼
+     PostgreSQL       Redis
+          │
+          ▼
+       Groq API (optional)
 ```
 
-API docs will be available at `http://localhost:8000/docs`.
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [docs/API.md](docs/API.md).
 
-For local Python development without Docker:
+## Quick start with Docker
 
-```powershell
+Requirements: Docker and Docker Compose.
+
+```bash
+cp backend/.env.example backend/.env
+# Set a strong JWT_SECRET_KEY in backend/.env. GROQ_API_KEY is optional.
+docker compose up --build
+```
+
+Open:
+
+- Frontend: `http://localhost:5173`
+- API docs: `http://localhost:8000/docs`
+- Health: `http://localhost:8000/health`
+
+The API container runs Alembic migrations before starting.
+
+## Local development
+
+### Backend
+
+Requirements: Python 3.11+ and running PostgreSQL/Redis services.
+
+```bash
 cd backend
-python -m venv venv
-venv\Scripts\Activate.ps1
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env
 alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-## Core Endpoints
+### Frontend
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `POST /api/auth/refresh`
-- `POST /api/auth/logout`
-- `GET /api/users/me`
-- `PATCH /api/users/me`
-- `PATCH /api/users/me/preferences`
-- `GET /api/rooms`
-- `POST /api/rooms`
-- `GET /api/rooms/{room_id}`
-- `PATCH /api/rooms/{room_id}`
-- `DELETE /api/rooms/{room_id}`
-- `POST /api/rooms/{room_id}/join`
-- `POST /api/rooms/{room_id}/leave`
-- `GET /api/goals`
-- `POST /api/goals`
-- `PATCH /api/goals/{goal_id}`
-- `POST /api/goals/session-notes`
-- `GET /api/matches`
-- `POST /api/matches/{match_id}/accept`
-- `POST /api/ai/study-plan`
+Requirements: Node.js 22+.
 
-## WebSocket
-
-Connect to:
-
-```text
-ws://localhost:8000/ws/{room_id}?token={access_jwt}
+```bash
+cd frontend
+npm ci
+cp .env.example .env
+npm run dev
 ```
 
-The server also accepts the `access_token` HttpOnly cookie when the browser connects from the frontend.
+The supplied values connect directly to the local API. You may also leave both variables blank to use the built-in Vite proxy. For separate deployments, set:
 
-Client events:
-
-- `join_room`
-- `pomodoro_start` with `{ "duration": 25 }`
-- `pomodoro_pause`
-- `pomodoro_reset`
-- `user_typing` with `{ "text": "..." }`
-
-Server events:
-
-- `room_state`
-- `pomodoro_tick`
-- `pomodoro_done`
-- `member_joined`
-- `member_left`
-- `user_typing`
-
-## Redis Pomodoro State
-
-Pomodoro state is stored in a Redis hash:
-
-```text
-room:{room_id}:pomodoro
-status=active
-start_time=unix_seconds
-duration=1500
-remaining=1500
-session_id={uuid}
+```env
+VITE_API_URL=https://your-api.example.com
+VITE_WS_URL=wss://your-api.example.com
 ```
 
-Each backend instance reads Redis as the source of truth and calculates remaining time from `start_time`, so reconnects and server restarts keep the timer synchronized.
+## Validation
+
+```bash
+cd frontend
+npm run lint
+npm run typecheck
+npm run build
+
+cd ../backend
+python -m compileall -q app
+python -m pytest -q
+```
+
+## Production deployment
+
+### Frontend on Vercel
+
+Set the project root to `frontend`, build command to `npm run build`, and output directory to `dist`. Add `VITE_API_URL` and `VITE_WS_URL`. `frontend/vercel.json` preserves client-side routes on refresh.
+
+### Backend on Render
+
+Use `render.yaml` or deploy `backend/Dockerfile`. Provide:
+
+- `DATABASE_URL` and `ALEMBIC_DATABASE_URL`
+- `REDIS_URL`
+- `JWT_SECRET_KEY`
+- `COOKIE_SECURE=true`
+- `CORS_ORIGINS` with the exact Vercel origin
+- optional `GROQ_API_KEY` and `GROQ_MODEL`
+
+## Repository structure
+
+```text
+frontend/            React application
+backend/             FastAPI application and migrations
+docs/                Architecture and API reference
+.github/workflows/   Frontend and backend CI
+render.yaml          Render deployment blueprint
+docker-compose.yml   Local full-stack environment
+LICENSE              MIT license
+```
+
+## Demo path
+
+1. Register and reach the dashboard.
+2. Create a room and copy its link.
+3. Open the link in a second signed-in browser window.
+4. Start the Pomodoro and show synchronized countdowns.
+5. Finish/reset the timer and save a session note.
+6. Create and complete a goal.
+7. Save matching preferences and show suggestions.
+8. Generate an exam plan.
+
+## License
+
+MIT — see [LICENSE](LICENSE).

@@ -58,6 +58,7 @@ class RoomRead(BaseModel):
     created_by: UUID
     visibility: RoomVisibility
     max_members: int
+    member_count: int
     created_at: datetime
 
 

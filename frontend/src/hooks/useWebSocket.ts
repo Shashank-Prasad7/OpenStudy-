@@ -1,75 +1,90 @@
-import { useCallback, useEffect, useRef } from 'react'
-import { useAuthStore } from '@/store/authStore'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRoomStore } from '@/store/roomStore'
 import type { WSEvent } from '@/types'
 
-export function useWebSocket(roomId: string | undefined) {
+export type SocketStatus = 'idle' | 'connecting' | 'connected' | 'disconnected' | 'error'
+
+export function useWebSocket(roomId: string | undefined, enabled: boolean) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const { setMembers, addMember, removeMember, setPomodoro, tickPomodoro } = useRoomStore()
-  const isAuthenticated = useAuthStore(s => s.isAuthenticated)
+  const connectRef = useRef<() => void>(() => undefined)
+  const shouldReconnect = useRef(true)
+  const [status, setStatus] = useState<SocketStatus>('idle')
+  const { setMembers, addMember, removeMember, setPomodoro } = useRoomStore()
 
   const connect = useCallback(() => {
-    if (!roomId || !isAuthenticated) return
+    if (!roomId || !enabled) return
+    setStatus('connecting')
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-    const host = import.meta.env.VITE_WS_URL ?? `${protocol}//${window.location.host}`
-    const url = `${host}/ws/${roomId}`
-    const ws = new WebSocket(url)
+    const base = (import.meta.env.VITE_WS_URL as string | undefined) ?? `${protocol}//${window.location.host}`
+    const ws = new WebSocket(`${base.replace(/\/$/, '')}/ws/${roomId}`)
     wsRef.current = ws
 
     ws.onopen = () => {
-      ws.send(JSON.stringify({ type: 'join_room' }))
+      setStatus('connected')
+      ws.send(JSON.stringify({ event: 'join_room' }))
     }
 
-    ws.onmessage = (e: MessageEvent) => {
+    ws.onmessage = event => {
       try {
-        const event = JSON.parse(e.data as string) as WSEvent
-        switch (event.type) {
+        const message = JSON.parse(String(event.data)) as WSEvent
+        switch (message.event) {
           case 'room_state':
-            setMembers(event.data.members)
-            setPomodoro(event.data.pomodoro)
+            setMembers(message.members)
+            setPomodoro(message.pomodoro)
             break
           case 'pomodoro_tick':
-            tickPomodoro(event.data.remaining_secs)
+            setPomodoro({
+              status: message.status,
+              remaining_secs: message.remaining_secs,
+              duration_secs: message.duration_secs,
+              session_id: message.session_id ?? null,
+            })
             break
           case 'pomodoro_done':
-            setPomodoro({ status: 'done', remaining_secs: 0, session_id: event.data.session_id })
+            setPomodoro({ status: 'completed', remaining_secs: 0, duration_secs: 0, session_id: message.session_id })
             break
           case 'member_joined':
-            addMember(event.data)
+            addMember(message.user)
             break
           case 'member_left':
-            removeMember(event.data.id)
+            removeMember(message.user_id)
+            break
+          case 'user_typing':
             break
         }
-      } catch { /* ignore malformed */ }
+      } catch {
+        // Ignore malformed frames; the next room_state will resynchronise the client.
+      }
     }
 
+    ws.onerror = () => setStatus('error')
     ws.onclose = () => {
-      reconnectTimer.current = setTimeout(connect, 3000)
+      setStatus('disconnected')
+      if (shouldReconnect.current && enabled) reconnectTimer.current = setTimeout(() => connectRef.current(), 3000)
     }
-
-    ws.onerror = () => ws.close()
-  }, [roomId, isAuthenticated, setMembers, setPomodoro, tickPomodoro, addMember, removeMember])
+  }, [addMember, enabled, removeMember, roomId, setMembers, setPomodoro])
 
   useEffect(() => {
-    connect()
-    const handleFocus = () => {
-      if (!wsRef.current || wsRef.current.readyState > 1) connect()
-    }
-    window.addEventListener('focus', handleFocus)
+    connectRef.current = connect
+    shouldReconnect.current = true
+    if (enabled) queueMicrotask(connect)
     return () => {
-      window.removeEventListener('focus', handleFocus)
+      shouldReconnect.current = false
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       wsRef.current?.close()
+      wsRef.current = null
+      setStatus('idle')
     }
-  }, [connect])
+  }, [connect, enabled])
 
-  const send = useCallback((type: string, data?: Record<string, unknown>) => {
+  const send = useCallback((event: string, payload: Record<string, unknown> = {}) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({ type, ...data }))
+      wsRef.current.send(JSON.stringify({ event, ...payload }))
+      return true
     }
+    return false
   }, [])
 
-  return { send }
+  return { send, status }
 }

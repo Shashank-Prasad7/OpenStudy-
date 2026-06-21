@@ -15,16 +15,18 @@ from app.utils import api_error
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-async def get_redis(request: Request) -> Redis:
-    """Return the application Redis client."""
+async def get_redis(request: Request) -> Redis | None:
+    """Return the application Redis client when available."""
 
-    return request.app.state.redis
+    return getattr(request.app.state, "redis", None)
 
 
-def rate_limit(limit: int, window_seconds: int) -> Callable[[Request, Redis], Awaitable[None]]:
-    """Simple Redis fixed-window rate limiter for sensitive endpoints."""
+def rate_limit(limit: int, window_seconds: int) -> Callable[..., Awaitable[None]]:
+    """Redis fixed-window limiter that gracefully degrades when Redis is unavailable."""
 
-    async def dependency(request: Request, redis: Redis = Depends(get_redis)) -> None:
+    async def dependency(request: Request, redis: Redis | None = Depends(get_redis)) -> None:
+        if redis is None:
+            return
         client_ip = request.client.host if request.client else "unknown"
         key = f"rate:{request.url.path}:{client_ip}"
         count = await redis.incr(key)
@@ -56,7 +58,7 @@ async def get_current_user(
     if not user_id:
         raise api_error(status.HTTP_401_UNAUTHORIZED, "Invalid authentication token.", "invalid_token")
 
-    user = await db.scalar(select(User).where(User.id == UUID(user_id)))
+    user = await db.scalar(select(User).where(User.id == UUID(str(user_id))))
     if user is None:
         raise api_error(status.HTTP_401_UNAUTHORIZED, "User no longer exists.", "invalid_token")
     return user

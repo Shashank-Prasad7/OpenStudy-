@@ -19,19 +19,14 @@ class Goal(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     title: Mapped[str] = mapped_column(String(180), nullable=False)
     completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     deadline: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[DateTime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=utc_now,
-        server_default=text("timezone('utc', now())"),
+        DateTime(timezone=True), nullable=False, default=utc_now, server_default=text("timezone('utc', now())")
     )
 
     user: Mapped["User"] = relationship(back_populates="goals")
@@ -44,23 +39,14 @@ class SessionNote(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("users.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     session_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True),
-        ForeignKey("pomodoro_sessions.id", ondelete="CASCADE"),
-        nullable=False,
-        index=True,
+        UUID(as_uuid=True), ForeignKey("pomodoro_sessions.id", ondelete="CASCADE"), nullable=False, index=True
     )
     note_text: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[DateTime] = mapped_column(
-        DateTime(timezone=True),
-        nullable=False,
-        default=utc_now,
-        server_default=text("timezone('utc', now())"),
+        DateTime(timezone=True), nullable=False, default=utc_now, server_default=text("timezone('utc', now())")
     )
 
     user: Mapped["User"] = relationship(back_populates="session_notes")

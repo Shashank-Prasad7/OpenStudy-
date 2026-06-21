@@ -23,8 +23,8 @@ class PartnerMatch(Base):
 
     __tablename__ = "partner_matches"
     __table_args__ = (
-        CheckConstraint("user_a_id <> user_b_id", name="ck_partner_matches_distinct_users"),
-        CheckConstraint("match_score >= 0 and match_score <= 1", name="ck_partner_matches_score_range"),
+        CheckConstraint("user_a_id <> user_b_id", name="distinct_users"),
+        CheckConstraint("match_score >= 0 and match_score <= 1", name="score_range"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)

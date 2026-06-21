@@ -1,7 +1,8 @@
 import uuid
+from datetime import date
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Integer, String, Text, text
+from sqlalchemy import Date, DateTime, Integer, String, Text, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -27,6 +28,7 @@ class User(Base):
     timezone: Mapped[str] = mapped_column(String(50), nullable=False, default="UTC")
     avatar_url: Mapped[str | None] = mapped_column(Text)
     streak_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    last_study_date: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[DateTime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
@@ -51,8 +53,6 @@ class User(Base):
     )
 
 
-# Import relationship targets so SQLAlchemy can resolve string-based mappings
-# even when a test or script imports app.models.user directly.
 from app.models import goal as _goal  # noqa: E402,F401
 from app.models import match as _match  # noqa: E402,F401
 from app.models import pomodoro as _pomodoro  # noqa: E402,F401

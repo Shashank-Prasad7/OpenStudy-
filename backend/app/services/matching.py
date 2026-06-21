@@ -113,6 +113,8 @@ async def build_suggestions(db: AsyncSession, user: User, limit: int = 10) -> li
         if existing is None:
             db.add(match)
             await db.flush()
+        else:
+            match.match_score = item.score
         suggestions.append((match, item.user, item.reasons))
         if len(suggestions) >= limit:
             break
