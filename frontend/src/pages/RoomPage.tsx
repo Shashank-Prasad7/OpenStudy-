@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Copy, DoorOpen, Lock, Trash2, Users } from 'lucide-react'
+import { ArrowLeft, BookOpen, Brain, Copy, DoorOpen, Lock, MessageCircle, Target, Trash2, Users } from 'lucide-react'
 import { toast } from 'sonner'
 import { getApiError } from '@/api/client'
 import { ErrorPanel, LoadingPanel } from '@/components/common/AsyncState'
@@ -127,20 +127,56 @@ export default function RoomPage() {
 
       {!isMember ? (
         <Card>
-          <CardHeader><CardTitle>Join to start studying together</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5 text-primary" /> Join to start studying together</CardTitle></CardHeader>
           <CardContent><p className="text-sm text-muted-foreground">Membership unlocks live presence, the synchronized Pomodoro, and post-session notes.</p></CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 xl:grid-cols-[1fr_360px]">
+        <>
+        <div className="mb-6 grid gap-4 md:grid-cols-3">
+          <Card className="bg-primary/5">
+            <CardContent className="flex items-center gap-3 p-5">
+              <Target className="h-8 w-8 text-primary" />
+              <div><p className="text-sm text-muted-foreground">Room Goal</p><p className="font-bold">Stay focused together</p></div>
+            </CardContent>
+          </Card>
+          <Card className="bg-primary/5">
+            <CardContent className="flex items-center gap-3 p-5">
+              <Users className="h-8 w-8 text-primary" />
+              <div><p className="text-sm text-muted-foreground">Live Members</p><p className="font-bold">{onlineMembers.length} online</p></div>
+            </CardContent>
+          </Card>
+          <Card className="bg-primary/5">
+            <CardContent className="flex items-center gap-3 p-5">
+              <Brain className="h-8 w-8 text-primary" />
+              <div><p className="text-sm text-muted-foreground">Focus Mode</p><p className="font-bold">Pomodoro workspace</p></div>
+            </CardContent>
+          </Card>
+        </div>
+        <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
           <PomodoroTimer
             state={pomodoro}
             socketStatus={socket.status}
             onStart={() => sendTimer('pomodoro_start', { duration: 25 })}
             onPause={() => sendTimer('pomodoro_pause')}
             onReset={() => sendTimer('pomodoro_reset')}
+            lastCloseReason={socket.lastCloseReason}
           />
-          <RoomMembers online={onlineMembers} members={room.members} />
+
+          <div className="space-y-6">
+            <RoomMembers online={onlineMembers} members={room.members} />
+            <Card className="border-primary/20">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-primary" /> Room Chat</CardTitle>
+                <p className="text-sm text-muted-foreground">UI placeholder for messages/notes.</p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="rounded-2xl bg-muted/60 p-3 text-sm">Share what you are studying now.</div>
+                <div className="rounded-2xl bg-primary/10 p-3 text-sm">Use this panel later for chat or AI notes.</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
+        </>
       )}
 
       <SessionNoteDialog
