@@ -32,19 +32,23 @@ async def list_rooms(
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedRooms:
-    """List public study rooms with pagination."""
-
     total = await db.scalar(select(func.count()).select_from(StudyRoom).where(StudyRoom.visibility == RoomVisibility.public))
     rooms = (
         await db.scalars(
             select(StudyRoom)
             .where(StudyRoom.visibility == RoomVisibility.public)
+            .options(selectinload(StudyRoom.members))
             .order_by(StudyRoom.created_at.desc())
             .limit(limit)
             .offset(offset)
         )
     ).all()
-    return PaginatedRooms(items=[RoomRead.model_validate(room) for room in rooms], total=total or 0, limit=limit, offset=offset)
+    return PaginatedRooms(
+        items=[RoomRead.model_validate(room) for room in rooms],
+        total=total or 0,
+        limit=limit,
+        offset=offset,
+    )
 
 
 @router.post("", response_model=RoomDetail, status_code=status.HTTP_201_CREATED)
@@ -53,8 +57,6 @@ async def create_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StudyRoom:
-    """Create a study room and automatically join the creator."""
-
     room = StudyRoom(**payload.model_dump(), created_by=current_user.id)
     db.add(room)
     await db.flush()
@@ -65,8 +67,6 @@ async def create_room(
 
 @router.get("/{room_id}", response_model=RoomDetail)
 async def get_room(room_id: UUID, db: AsyncSession = Depends(get_db)) -> StudyRoom:
-    """Return room details and current members."""
-
     return await _get_room_detail(db, room_id)
 
 
@@ -77,8 +77,6 @@ async def update_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StudyRoom:
-    """Update a room owned by the authenticated user."""
-
     room = await _get_room_detail(db, room_id)
     if room.created_by != current_user.id:
         raise forbidden()
@@ -94,8 +92,6 @@ async def delete_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    """Delete a room owned by the authenticated user."""
-
     room = await _get_room_detail(db, room_id)
     if room.created_by != current_user.id:
         raise forbidden()
@@ -109,8 +105,6 @@ async def join_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StudyRoom:
-    """Join a room if capacity allows."""
-
     room = await _get_room_detail(db, room_id)
     if any(member.user_id == current_user.id for member in room.members):
         return room
@@ -127,12 +121,12 @@ async def leave_room(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> StudyRoom:
-    """Leave a joined room. Room creators may not leave their own room."""
-
     room = await _get_room_detail(db, room_id)
     if room.created_by == current_user.id:
         raise api_error(status.HTTP_409_CONFLICT, "Room creator cannot leave; delete the room instead.", "creator_cannot_leave")
-    membership = await db.scalar(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == current_user.id))
+    membership = await db.scalar(
+        select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == current_user.id)
+    )
     if membership is None:
         raise api_error(status.HTTP_409_CONFLICT, "You are not a member of this room.", "not_member")
     await db.delete(membership)

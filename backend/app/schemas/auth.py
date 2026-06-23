@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, HttpUrl
@@ -38,6 +38,7 @@ class UserRead(BaseModel):
     timezone: str
     avatar_url: str | None
     streak_count: int
+    last_study_date: date | None
     created_at: datetime
 
 

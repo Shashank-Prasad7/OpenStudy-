@@ -1,56 +1,72 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import type { StudyRoom, RoomDetail, PaginatedRooms } from '@/types'
+import type { PaginatedRooms, RoomDetail } from '@/types'
+
+export interface CreateRoomPayload {
+  name: string
+  description?: string
+  subject_tags: string[]
+  visibility: 'public' | 'private'
+  max_members: number
+}
 
 export function useRooms(limit = 20, offset = 0) {
   return useQuery<PaginatedRooms>({
     queryKey: ['rooms', limit, offset],
-    queryFn: async () => {
-      const res = await api.get(`/api/rooms?limit=${limit}&offset=${offset}`)
-      return res.data
-    },
+    queryFn: () => api.get<PaginatedRooms>(`/api/rooms?limit=${limit}&offset=${offset}`).then(response => response.data),
   })
 }
 
 export function useRoom(id: string | undefined) {
   return useQuery<RoomDetail>({
     queryKey: ['rooms', id],
-    queryFn: async () => {
-      const res = await api.get(`/api/rooms/${id}`)
-      return res.data
-    },
-    enabled: !!id,
+    queryFn: () => api.get<RoomDetail>(`/api/rooms/${id}`).then(response => response.data),
+    enabled: Boolean(id),
   })
 }
 
 export function useCreateRoom() {
-  const qc = useQueryClient()
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (data: Partial<StudyRoom>) => api.post('/api/rooms', data).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    mutationFn: (data: CreateRoomPayload) => api.post<RoomDetail>('/api/rooms', data).then(response => response.data),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      void queryClient.invalidateQueries({ queryKey: ['me', 'stats'] })
+    },
   })
 }
 
 export function useJoinRoom() {
-  const qc = useQueryClient()
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api.post(`/api/rooms/${id}/join`).then(r => r.data),
-    onSuccess: (_data, id) => qc.invalidateQueries({ queryKey: ['rooms', id] }),
+    mutationFn: (id: string) => api.post<RoomDetail>(`/api/rooms/${id}/join`).then(response => response.data),
+    onSuccess: (room, id) => {
+      queryClient.setQueryData(['rooms', id], room)
+      void queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      void queryClient.invalidateQueries({ queryKey: ['me', 'stats'] })
+    },
   })
 }
 
 export function useLeaveRoom() {
-  const qc = useQueryClient()
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (id: string) => api.post(`/api/rooms/${id}/leave`).then(r => r.data),
-    onSuccess: (_data, id) => qc.invalidateQueries({ queryKey: ['rooms', id] }),
+    mutationFn: (id: string) => api.post<RoomDetail>(`/api/rooms/${id}/leave`).then(response => response.data),
+    onSuccess: (room, id) => {
+      queryClient.setQueryData(['rooms', id], room)
+      void queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      void queryClient.invalidateQueries({ queryKey: ['me', 'stats'] })
+    },
   })
 }
 
 export function useDeleteRoom() {
-  const qc = useQueryClient()
+  const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => api.delete(`/api/rooms/${id}`),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['rooms'] }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['rooms'] })
+      void queryClient.invalidateQueries({ queryKey: ['me', 'stats'] })
+    },
   })
 }

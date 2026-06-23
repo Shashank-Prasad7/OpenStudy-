@@ -25,26 +25,33 @@ websocket_router = APIRouter(tags=["websocket"])
 
 
 class ConnectionManager:
-    """Tracks active WebSocket clients and broadcasts room-scoped events."""
-
     def __init__(self) -> None:
         self.active: dict[UUID, dict[UUID, WebSocket]] = {}
         self.users: dict[UUID, dict[UUID, dict[str, str | None]]] = {}
-        self.tick_tasks: dict[UUID, asyncio.Task] = {}
+        self.tick_tasks: dict[UUID, asyncio.Task[None]] = {}
         self._lock = asyncio.Lock()
 
     async def connect(self, room_id: UUID, user: User, websocket: WebSocket) -> None:
         await websocket.accept()
         async with self._lock:
-            self.active.setdefault(room_id, {})[user.id] = websocket
+            old_socket = self.active.setdefault(room_id, {}).get(user.id)
+            if old_socket is not None and old_socket is not websocket:
+                try:
+                    await old_socket.close(code=1000)
+                except Exception:
+                    pass
+            self.active[room_id][user.id] = websocket
             self.users.setdefault(room_id, {})[user.id] = {
                 "id": str(user.id),
                 "name": user.name,
-                "avatar": user.avatar_url,
+                "avatar_url": user.avatar_url,
             }
 
-    async def disconnect(self, room_id: UUID, user_id: UUID) -> None:
+    async def disconnect(self, room_id: UUID, user_id: UUID, websocket: WebSocket | None = None) -> None:
         async with self._lock:
+            current = self.active.get(room_id, {}).get(user_id)
+            if websocket is not None and current is not websocket:
+                return
             self.active.get(room_id, {}).pop(user_id, None)
             self.users.get(room_id, {}).pop(user_id, None)
             if not self.active.get(room_id):
@@ -58,14 +65,14 @@ class ConnectionManager:
         return list(self.users.get(room_id, {}).values())
 
     async def broadcast(self, room_id: UUID, message: dict) -> None:
-        dead_users: list[UUID] = []
+        dead_connections: list[tuple[UUID, WebSocket]] = []
         for user_id, websocket in list(self.active.get(room_id, {}).items()):
             try:
                 await websocket.send_json(message)
             except Exception:
-                dead_users.append(user_id)
-        for user_id in dead_users:
-            await self.disconnect(room_id, user_id)
+                dead_connections.append((user_id, websocket))
+        for user_id, websocket in dead_connections:
+            await self.disconnect(room_id, user_id, websocket)
 
     async def ensure_tick_loop(self, room_id: UUID, redis: Redis) -> None:
         task = self.tick_tasks.get(room_id)
@@ -82,6 +89,7 @@ class ConnectionManager:
                 "pomodoro": {
                     "status": state.status,
                     "remaining_secs": state.remaining_secs,
+                    "duration_secs": state.duration_secs,
                     "session_id": state.session_id,
                 },
             },
@@ -97,7 +105,9 @@ class ConnectionManager:
                         {
                             "event": "pomodoro_tick",
                             "remaining_secs": state.remaining_secs,
+                            "duration_secs": state.duration_secs,
                             "status": state.status,
+                            "session_id": state.session_id,
                         },
                     )
                 elif state.status == "completed":
@@ -105,11 +115,16 @@ class ConnectionManager:
                         session_id = await complete_pomodoro_once(redis, db, room_id, state)
                     await self.broadcast(
                         room_id,
-                        {"event": "pomodoro_tick", "remaining_secs": 0, "status": "completed"},
+                        {
+                            "event": "pomodoro_tick",
+                            "remaining_secs": 0,
+                            "duration_secs": state.duration_secs,
+                            "status": "completed",
+                            "session_id": state.session_id,
+                        },
                     )
                     if session_id:
                         await self.broadcast(room_id, {"event": "pomodoro_done", "session_id": session_id})
-                    await asyncio.sleep(1)
                 await asyncio.sleep(1)
         except asyncio.CancelledError:
             return
@@ -131,32 +146,35 @@ async def _authenticate_websocket(websocket: WebSocket, db: AsyncSession) -> Use
         return None
 
 
-async def _room_exists(db: AsyncSession, room_id: UUID) -> bool:
-    room = await db.scalar(select(StudyRoom).where(StudyRoom.id == room_id).options(selectinload(StudyRoom.members)))
-    return room is not None
+async def _get_room(db: AsyncSession, room_id: UUID) -> StudyRoom | None:
+    return await db.scalar(
+        select(StudyRoom).where(StudyRoom.id == room_id).options(selectinload(StudyRoom.members))
+    )
 
 
-async def _ensure_membership(db: AsyncSession, room_id: UUID, user_id: UUID) -> None:
-    membership = await db.scalar(select(RoomMember).where(RoomMember.room_id == room_id, RoomMember.user_id == user_id))
-    if membership is None:
-        db.add(RoomMember(room_id=room_id, user_id=user_id))
-        await db.commit()
+async def _ensure_membership(db: AsyncSession, room: StudyRoom, user_id: UUID) -> bool:
+    if any(member.user_id == user_id for member in room.members):
+        return True
+    if len(room.members) >= room.max_members:
+        return False
+    db.add(RoomMember(room_id=room.id, user_id=user_id))
+    await db.commit()
+    return True
 
 
 @websocket_router.websocket("/ws/{room_id}")
 async def room_websocket(websocket: WebSocket, room_id: UUID) -> None:
-    """Authenticated room WebSocket for presence and Redis-synced Pomodoro events."""
+    redis: Redis | None = getattr(websocket.app.state, "redis", None)
+    if redis is None:
+        await websocket.close(code=status.WS_1013_TRY_AGAIN_LATER)
+        return
 
-    redis: Redis = websocket.app.state.redis
     async with AsyncSessionLocal() as db:
         user = await _authenticate_websocket(websocket, db)
-        if user is None:
+        room = await _get_room(db, room_id)
+        if user is None or room is None or not await _ensure_membership(db, room, user.id):
             await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
             return
-        if not await _room_exists(db, room_id):
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-            return
-        await _ensure_membership(db, room_id, user.id)
 
     await manager.connect(room_id, user, websocket)
     await manager.ensure_tick_loop(room_id, redis)
@@ -171,14 +189,14 @@ async def room_websocket(websocket: WebSocket, room_id: UUID) -> None:
             if event == "join_room":
                 await manager.send_room_state(room_id, redis)
             elif event == "pomodoro_start":
-                duration = int(message.get("duration", 25))
-                duration = max(1, min(duration, 180))
+                duration = max(1, min(int(message.get("duration", 25)), 180))
                 async with AsyncSessionLocal() as db:
                     await start_pomodoro(redis, db, room_id, duration)
                 await manager.ensure_tick_loop(room_id, redis)
                 await manager.send_room_state(room_id, redis)
             elif event == "pomodoro_pause":
-                await pause_pomodoro(redis, room_id)
+                async with AsyncSessionLocal() as db:
+                    await pause_pomodoro(redis, db, room_id)
                 await manager.send_room_state(room_id, redis)
             elif event == "pomodoro_reset":
                 async with AsyncSessionLocal() as db:
@@ -187,14 +205,10 @@ async def room_websocket(websocket: WebSocket, room_id: UUID) -> None:
             elif event == "user_typing":
                 await manager.broadcast(
                     room_id,
-                    {
-                        "event": "user_typing",
-                        "user_id": str(user.id),
-                        "text": str(message.get("text", ""))[:240],
-                    },
+                    {"event": "user_typing", "user_id": str(user.id), "text": str(message.get("text", ""))[:240]},
                 )
     except WebSocketDisconnect:
         pass
     finally:
-        await manager.disconnect(room_id, user.id)
+        await manager.disconnect(room_id, user.id, websocket)
         await manager.broadcast(room_id, {"event": "member_left", "user_id": str(user.id)})

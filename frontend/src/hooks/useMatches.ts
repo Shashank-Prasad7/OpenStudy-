@@ -1,22 +1,19 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/api/client'
-import type { MatchSuggestion } from '@/types'
+import type { MatchSuggestion, PartnerMatch } from '@/types'
 
-export function useMatches(limit = 10) {
+export function useMatches(limit = 10, enabled = true) {
   return useQuery<MatchSuggestion[]>({
     queryKey: ['matches', limit],
-    queryFn: async () => {
-      const res = await api.get(`/api/matches?limit=${limit}`)
-      return res.data
-    },
+    queryFn: () => api.get<MatchSuggestion[]>(`/api/matches?limit=${limit}`).then(response => response.data),
+    enabled,
   })
 }
 
 export function useAcceptMatch() {
-  const qc = useQueryClient()
+  const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (matchId: string) =>
-      api.post(`/api/matches/${matchId}/accept`).then(r => r.data),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['matches'] }),
+    mutationFn: (matchId: string) => api.post<PartnerMatch>(`/api/matches/${matchId}/accept`).then(response => response.data),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['matches'] }),
   })
 }
