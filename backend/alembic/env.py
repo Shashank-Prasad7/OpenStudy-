@@ -21,8 +21,7 @@ _ = (Goal, SessionNote, PartnerMatch, PomodoroSession, Preference, RoomMember, S
 
 config = context.config
 settings = get_settings()
-if settings.alembic_database_url:
-    config.set_main_option("sqlalchemy.url", settings.alembic_database_url)
+config.set_main_option("sqlalchemy.url", settings.resolved_alembic_database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
