@@ -12,6 +12,7 @@ const RoomPage = lazy(() => import('@/pages/RoomPage'))
 const GoalsPage = lazy(() => import('@/pages/GoalsPage'))
 const MatchesPage = lazy(() => import('@/pages/MatchesPage'))
 const AIPlannerPage = lazy(() => import('@/pages/AIPlannerPage'))
+const StudyPlannerPage = lazy(() => import('@/pages/StudyPlannerPage'))
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'))
 const NotFoundPage = lazy(() => import('@/pages/NotFoundPage'))
 
@@ -40,6 +41,7 @@ export default function App() {
             <Route path="/goals" element={<GoalsPage />} />
             <Route path="/matches" element={<MatchesPage />} />
             <Route path="/planner" element={<AIPlannerPage />} />
+            <Route path="/study-planner" element={<StudyPlannerPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>

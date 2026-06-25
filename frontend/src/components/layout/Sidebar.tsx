@@ -22,6 +22,7 @@ const navItems = [
   { to: '/goals', icon: Target, label: 'Goals' },
   { to: '/matches', icon: Users, label: 'Partners' },
   { to: '/planner', icon: BrainCircuit, label: 'AI Planner' },
+  { to: '/study-planner', icon: GraduationCap, label: 'AI Study Planner' },
 ]
 
 function NavItems({ compact = false }: { compact?: boolean }) {

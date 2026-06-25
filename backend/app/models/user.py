@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.match import PartnerMatch
     from app.models.preference import Preference
     from app.models.room import RoomMember, StudyRoom
+    from app.models.study_plan import SavedStudyPlan
 
 
 class User(Base):
@@ -51,6 +52,7 @@ class User(Base):
         foreign_keys="PartnerMatch.user_b_id",
         cascade="all, delete-orphan",
     )
+    study_plans: Mapped[list["SavedStudyPlan"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
 from app.models import goal as _goal  # noqa: E402,F401
@@ -58,3 +60,4 @@ from app.models import match as _match  # noqa: E402,F401
 from app.models import pomodoro as _pomodoro  # noqa: E402,F401
 from app.models import preference as _preference  # noqa: E402,F401
 from app.models import room as _room  # noqa: E402,F401
+from app.models import study_plan as _study_plan  # noqa: E402,F401

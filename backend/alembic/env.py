@@ -15,9 +15,10 @@ from app.models.match import PartnerMatch
 from app.models.pomodoro import PomodoroSession
 from app.models.preference import Preference
 from app.models.room import RoomMember, StudyRoom
+from app.models.study_plan import SavedStudyPlan
 from app.models.user import User
 
-_ = (Goal, SessionNote, PartnerMatch, PomodoroSession, Preference, RoomMember, StudyRoom, User)
+_ = (Goal, SessionNote, PartnerMatch, PomodoroSession, Preference, RoomMember, StudyRoom, SavedStudyPlan, User)
 
 config = context.config
 settings = get_settings()

@@ -140,3 +140,47 @@ export type WSEvent =
   | { event: 'member_joined'; user: PresenceMember }
   | { event: 'member_left'; user_id: string }
   | { event: 'user_typing'; user_id: string; text: string }
+
+
+// ---------- AI Study Planner types ----------
+
+export interface AIStudyPlannerRequest {
+  subject: string
+  exam: string
+  level: string
+  hoursPerDay: number
+  examDate: string
+  notes?: string
+}
+
+export interface PhaseItem {
+  title: string
+  duration: string
+  topics: string[]
+}
+
+export interface AIStudyPlannerResponse {
+  overview: string
+  estimatedDuration: string
+  assessment: string
+  phases: PhaseItem[]
+  weeklyPlan: string[]
+  dailyRoutine: string[]
+  milestones: string[]
+  practiceStrategy: string[]
+  revisionStrategy: string[]
+  resources: string[]
+  examTips: string[]
+}
+
+export interface SavedPlan {
+  id: string
+  subject: string
+  exam: string
+  level: string
+  hours_per_day: number
+  exam_date: string
+  notes: string | null
+  plan_data: AIStudyPlannerResponse
+  created_at: string
+}
