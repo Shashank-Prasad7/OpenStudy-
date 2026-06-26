@@ -5,7 +5,6 @@
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
     "types": ["vite/client", "node"],
-    "ignoreDeprecations": "6.0",
     "skipLibCheck": true,
 
     /* Bundler mode */
