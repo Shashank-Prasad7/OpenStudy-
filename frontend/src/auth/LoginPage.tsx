@@ -29,6 +29,14 @@ export default function LoginPage() {
   async function onSubmit(data: FormData) {
     try {
       const res = await api.post('/api/auth/login', data)
+      const accessToken =
+        res.data.access_token ??
+        res.data.token
+
+      if (accessToken) {
+        localStorage.setItem('openstudy-access-token', accessToken)
+      }
+
       setUser(res.data.user)
       toast.success(`Welcome back, ${res.data.user.name}!`)
       navigate('/dashboard')
